@@ -1,0 +1,8 @@
+current_tree_bottom
+[0]; block's number
+[1]: position(center point)
+
+complete_locations
+[0]: block's number
+[1]: position(center)
+[2]: point on y-axis
