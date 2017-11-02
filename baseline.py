@@ -102,7 +102,9 @@ class node(object):
         self.f = self.g + self.h
         self.parent = arg
         self.block = 0
-        self.max_height = 0
+        self.current_volume = 0
+        self.position = 0
+        # self.height = 0
 
 
 # generates a list of all possible subsets for structure bottom
@@ -122,7 +124,7 @@ def generate_subsets(current_tree_bottom):
         current_distances[i] = round(current_distances[i], 10)
 
     # all possible x-distances between bottom blocks
-    split_points = list(set(current_distances))
+    split_points = list(set(current_distances))  # delete duplicate x-distances
 
     for i in split_points:      # subsets based on differences between x-distances
         current_subset = []
@@ -332,24 +334,50 @@ def add_new_row(current_tree_bottom, total_tree):
         return add_new_row(current_tree_bottom, total_tree)
 
 
-def add_new_row(current_tree_bottom, total_tree, goal):
+def add_new_row(current_tree_bottom, total_tree, goal, current_height):
+    step = 1
     start = node(None)
     start.g = 0
     start.h = 0
     openlist = []
     closelist = [start]
     complete_locations = []
+    position = 0
     ground = absolute_ground
     for row in reversed(total_tree):
         for item in row:
             complete_locations.append([item[0], item[1], round(
                 (((blocks[str(item[0])][1])/2)+ground), 10)])
         ground = ground + (blocks[str(item[0])][1])
+
     while len(openlist) != 0:
-        current = find_least_f(openlist)
+        index = find_least_f(openlist)
+        current = openlist[index]
+        if current.f >= 0.7 and current.f <= 0.85:
+
+            break
+        del openlist[index]
+        closelist.append(current)
         childlist = generate_child(
             current, find_structure_height(complete_locations))
+        max_width, max_height = limit_boundary(
+            0, 0, find_structure_height(complete_locations)+childlist[0].max_height)
         for i, val in childlist:
+            if val in closelist:
+                continue
+
+            if (val.height+current_height > max_height) or (position+blocks[val.block][0]) > max_width:
+                closelist.append(val)
+
+            if (step % 2 == 1 and current.position+blocks[current.block][0]/2.0):
+                pass
+            if val not in openlist:
+                openlist.append(val)
+
+            # block = blocks[str(val.block)]
+            # val.f = current.f+block[0]*block[1]/(val.max_height*max_width)
+
+        step += 1
 
 
 def find_least_f(openlist):
@@ -359,24 +387,47 @@ def find_least_f(openlist):
         if val.f < min_f:
             min_num = i
             min_f = val.f
-    return openlist.pop(min_num)
+    return min_num
+
+
+def check_block_type(pNode):
+    type_list = []
+    while pNode.block != 0:
+        if pNode.block not in type_list:
+            type_list.append(pNode.block)
+        pNode = pNode.parent
+    return len(type_list)
+
+
+def find_max_height(nd):
+    max_height = 0
+    while nd.block != 0:
+        if(blocks[nd.block][1] >= max_height)
+            max_height = blocks[nd.block][1]
+        nd = nd.parent
+    return max_height
 
 
 def generate_child(parent_node, current_height):
     childlist = []
     while i < len(blocks):
-        if blocks[i][1] > parent_node.max_height and parent_node.max_height != 0:
-            continue
-        child = node(parent_node)
-        child.g = parent_node.g+blocks[i][0]*blocks[i][1]
-        child.block = i
+        # if blocks[i][1] > parent_node.max_height and parent_node.max_height != 0:
+        #     continue
         max_width, max_height = limit_boundary(
-            0, 0, current_height+parent_node.max_height)
-        child.h = max_width*parent_node.max_height-child.g
-        if parent_node.max_height == 0:
-            child.max_height = blocks[i][0]
+            0, 0, current_height)
+        child = node(parent_node)
+        child.block = i
+        child.position = parent_node.position+blocks[parent_node.block][0]
+        child.current_volume = parent.current_volume+blocks[i][0]*blocks[i][1]
+        child.g = 1-check_block_type(child)/13.0+child.current_volume / \
+            structure_volume
+        child.f = child.g
+        # child.h = max_width*parent_node.max_height-child.g
+        # if parent_node.max_height == 0:
+        #     child.max_height = blocks[i][0]
         childlist.append(child)
     return childlist
+
 
 # creates the peaks (first row) of the structure
 
@@ -442,16 +493,9 @@ def make_peaks(center_point):
 def make_structure(absolute_ground, center_point, max_width, max_height):
 
     total_tree = []                 # all blocks of structure (so far)
-    # if max_width>2*max_height:
-    #     max_width=2*max_height
-    # if max_height>max_width/2.0:
-    #     max_height=max_width/2.0
     # creates the first row (peaks) for the structure, ensuring that max_width
     # restriction is satisfied
     current_tree_bottom = make_peaks(center_point)
-    # if max_width > 0.0:
-    #     while find_structure_width(current_tree_bottom) > max_width:
-    #         current_tree_bottom = make_peaks(center_point)
 
     max_width, max_height = limit_boundary(
         max_width, max_height, (blocks[str(current_tree_bottom[0][0])][1])/2)
@@ -465,7 +509,7 @@ def make_structure(absolute_ground, center_point, max_width, max_height):
 
     # recursively add more rows of blocks to the level structure
     structure_width = find_structure_width(current_tree_bottom)
-    structure_height = (blocks[str(current_tree_bottom[0][0])][1])/2
+    structure_height = (blocks[str(current_tree_bottom[0][0])][1]/2)
     print('w', structure_width, 'h', structure_height,
           'w', max_width, 'h', max_height)
     # print(current_width(structure_height),1,limit_boundary(max_width,max_height,current_tree_bottom))
@@ -520,6 +564,7 @@ def make_structure(absolute_ground, center_point, max_width, max_height):
                 (((blocks[str(item[0])][1])/2)+ground), 10)])
         ground = ground + (blocks[str(item[0])][1])
 
+    print(total_tree)
     print("Width:", find_structure_width(complete_locations))
     print("Height:", find_structure_height(complete_locations))
     # number blocks present in the structure
