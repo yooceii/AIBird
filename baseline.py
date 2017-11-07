@@ -2,8 +2,9 @@
 from random import randint
 from random import uniform
 from math import sqrt, ceil
-from copy import deepcopy
+import copy
 from sympy import *
+import numpy as np
 import itertools
 
 # blocks number and size
@@ -92,19 +93,20 @@ ground_structure_height_limit = (
 max_attempts = 100
 
 
-class node(object):
-    """docstring for node"""
+class Node(object):
+    """docstring for Node"""
 
     def __init__(self, arg):
-        super(node, self).__init__()
+        super(Node, self).__init__()
         self.g = 0
         self.h = 0
         self.f = self.g + self.h
         self.parent = arg
-        self.block = 0
-        self.current_volume = 0
+        self.block = str(0)
+        self.current_structure_height = 0
         self.position = 0
-        # self.height = 0
+        self.point = 0
+        self.max_height = 0
 
 
 # generates a list of all possible subsets for structure bottom
@@ -261,123 +263,186 @@ def find_structure_height(structure):
 
 # adds a new row of blocks to the bottom of the structure
 
-def add_new_row(current_tree_bottom, total_tree):
+# def add_new_row(current_tree_bottom, total_tree):
 
-    # generate possible groupings of bottom row objects
-    groupings = generate_subsets(current_tree_bottom)
-    # choosen block for new row
-    choosen_item = choose_item(probability_table_blocks)
-    # collection of viable groupings with new block at center
-    center_groupings = []
-    # collection of viable groupings with new block at edges
-    edge_groupings = []
-    # collection of viable groupings with new block at both center and edges
-    both_groupings = []
+#     # generate possible groupings of bottom row objects
+#     groupings = generate_subsets(current_tree_bottom)
+#     # choosen block for new row
+#     choosen_item = choose_item(probability_table_blocks)
+#     # collection of viable groupings with new block at center
+#     center_groupings = []
+#     # collection of viable groupings with new block at edges
+#     edge_groupings = []
+#     # collection of viable groupings with new block at both center and edges
+#     both_groupings = []
 
-    # check if new block is viable for each grouping in each position
-    for grouping in groupings:
-        # check if center viable
-        if check_center(grouping, choosen_item, current_tree_bottom):
-            center_groupings.append(grouping)
-        # check if edges viable
-        if check_edge(grouping, choosen_item, current_tree_bottom):
-            edge_groupings.append(grouping)
-        # check if both center and edges viable
-        if check_both(grouping, choosen_item, current_tree_bottom):
-            both_groupings.append(grouping)
+#     # check if new block is viable for each grouping in each position
+#     for grouping in groupings:
+#         # check if center viable
+#         if check_center(grouping, choosen_item, current_tree_bottom):
+#             center_groupings.append(grouping)
+#         # check if edges viable
+#         if check_edge(grouping, choosen_item, current_tree_bottom):
+#             edge_groupings.append(grouping)
+#         # check if both center and edges viable
+#         if check_both(grouping, choosen_item, current_tree_bottom):
+#             both_groupings.append(grouping)
 
-    # randomly choose a configuration (grouping/placement) from the viable
-    # options
-    total_options = len(center_groupings) + len(edge_groupings) + \
-        len(both_groupings)  # total number of options
-    if total_options > 0:
-        option = randint(1, total_options)
-        print(option, total_options)
-        if option > len(center_groupings) + len(edge_groupings):
-            selected_grouping = both_groupings[
-                option - (len(center_groupings) + len(edge_groupings) + 1)]
-            placement_method = 2
-        elif option > len(center_groupings):
-            selected_grouping = edge_groupings[
-                option - (len(center_groupings) + 1)]
-            placement_method = 1
-        else:
-            selected_grouping = center_groupings[option-1]
-            placement_method = 0
+#     # randomly choose a configuration (grouping/placement) from the viable
+#     # options
+#     total_options = len(center_groupings) + len(edge_groupings) + \
+#         len(both_groupings)  # total number of options
+#     if total_options > 0:
+#         option = randint(1, total_options)
+#         print(option, total_options)
+#         if option > len(center_groupings) + len(edge_groupings):
+#             selected_grouping = both_groupings[
+#                 option - (len(center_groupings) + len(edge_groupings) + 1)]
+#             placement_method = 2
+#         elif option > len(center_groupings):
+#             selected_grouping = edge_groupings[
+#                 option - (len(center_groupings) + 1)]
+#             placement_method = 1
+#         else:
+#             selected_grouping = center_groupings[option-1]
+#             placement_method = 0
 
-        # construct the new bottom row for structure using selected
-        # block/configuration
-        new_bottom = []
-        for subset in selected_grouping:
-            if placement_method == 0:
-                new_bottom.append([choosen_item, find_subset_center(subset)])
-            if placement_method == 1:
-                new_bottom.append([choosen_item, find_subset_edges(subset)[0]])
-                new_bottom.append([choosen_item, find_subset_edges(subset)[1]])
-            if placement_method == 2:
-                new_bottom.append([choosen_item, find_subset_edges(subset)[0]])
-                new_bottom.append([choosen_item, find_subset_center(subset)])
-                new_bottom.append([choosen_item, find_subset_edges(subset)[1]])
+#         # construct the new bottom row for structure using selected
+#         # block/configuration
+#         new_bottom = []
+#         for subset in selected_grouping:
+#             if placement_method == 0:
+#                 new_bottom.append([choosen_item, find_subset_center(subset)])
+#             if placement_method == 1:
+#                 new_bottom.append([choosen_item, find_subset_edges(subset)[0]])
+#                 new_bottom.append([choosen_item, find_subset_edges(subset)[1]])
+#             if placement_method == 2:
+#                 new_bottom.append([choosen_item, find_subset_edges(subset)[0]])
+#                 new_bottom.append([choosen_item, find_subset_center(subset)])
+#                 new_bottom.append([choosen_item, find_subset_edges(subset)[1]])
 
-        for i in new_bottom:
-            # round all values to prevent floating point inaccuracy from
-            # causing errors
-            i[1] = round(i[1], 10)
+#         for i in new_bottom:
+#             # round all values to prevent floating point inaccuracy from
+#             # causing errors
+#             i[1] = round(i[1], 10)
 
-        current_tree_bottom = new_bottom
-        # add new bottom row to the structure
-        total_tree.append(current_tree_bottom)
-        return total_tree, current_tree_bottom      # return the new structure
+#         current_tree_bottom = new_bottom
+#         # add new bottom row to the structure
+#         total_tree.append(current_tree_bottom)
+# return total_tree, current_tree_bottom      # return the new structure
 
-    else:
-        # choose a new block and try again if no options available
-        return add_new_row(current_tree_bottom, total_tree)
+#     else:
+#         # choose a new block and try again if no options available
+#         return add_new_row(current_tree_bottom, total_tree)
 
 
-def add_new_row(current_tree_bottom, total_tree, goal, current_height):
-    step = 1
-    start = node(None)
+def generate():
+    start = Node(None)
     start.g = 0
     start.h = 0
-    openlist = []
-    closelist = [start]
-    complete_locations = []
-    position = 0
-    ground = absolute_ground
-    for row in reversed(total_tree):
-        for item in row:
-            complete_locations.append([item[0], item[1], round(
-                (((blocks[str(item[0])][1])/2)+ground), 10)])
-        ground = ground + (blocks[str(item[0])][1])
+    # openlist = []
+    # closelist = [start]
+    # complete_locations = []
+    parents=[]
+    leaf_node=[]
+    parents.append(start)
+    step = 1
+    height = 0
+    # relate to previous child
+    width = limit_boundary(height)
+    sections = np.arange(0.0, width-0.22, 0.22)
 
-    while len(openlist) != 0:
-        index = find_least_f(openlist)
-        current = openlist[index]
-        if current.f >= 0.7 and current.f <= 0.85:
+    while True:
 
-            break
-        del openlist[index]
-        closelist.append(current)
-        childlist = generate_child(
-            current, find_structure_height(complete_locations))
-        max_width, max_height = limit_boundary(
-            0, 0, find_structure_height(complete_locations)+childlist[0].max_height)
-        for i, val in childlist:
-            if val in closelist:
-                continue
+        for leaf in leaf_node:
+            width=limit_boundary(leaf.current_structure_height+leaf.max_height)
+            sections=np.arange(0.0,width-0.22,0.22)
+            # each position
+            for position in sections:
+                temp_parents = []
 
-            if (val.height+current_height > max_height) or (position+blocks[val.block][0]) > max_width:
-                closelist.append(val)
+                # blocks in the same position
+                for parent_node in parents:
+                    childlist = generate_child(parent_node, step)
+                    empty = True
+                    for child in childlist:
+                        if parent_node.max_height == 0:
+                            child.max_height = blocks[child.block][1]
+                        else:
+                            child.max_height = parent_node.max_height
+                        child.position = position
+                        child.point = find_point(position, parent_node)
+                        if check_stablity(child) and position+blocks[child.block][0] <= width and child.point+blocks[child.block][1] <= height_limit(position) and child.max_height >= blocks[child.block][1]:
+                            if position+blocks[child.block][0]+0.22 > width and blocks[child.block][1] == child.max_height:
+                                child.parent = parent_node
+                            else:
+                                child.parent = parent_node
+                            temp_parents.append(child)
+                            empty = False
 
-            if (step % 2 == 1 and current.position+blocks[current.block][0]/2.0):
-                pass
-            if val not in openlist:
-                openlist.append(val)
+                        if position==0:
+                            child.current_structure_height=parent_node.current_structure_height+parent_node.max_height
+                        else :
+                            child.current_structure_height = parent_node.current_structure_height
+                        if position==width-0.22:
+                            leaf_node.append(copy.deepcopy(child))
 
-            # block = blocks[str(val.block)]
-            # val.f = current.f+block[0]*block[1]/(val.max_height*max_width)
+                    # if no child is suitable
+                    if empty:
+                        child = Node(parent_node)
+                        child.block = str(0)
+                        child.max_height = parent_node.max_height
+                        temp_parents.append(child)
+
+                        if position==0:
+                            child.current_structure_height=parent_node.current_structure_height+parent_node.max_height
+                        else :
+                            child.current_structure_height = parent_node.current_structure_height
+
+                        if position==width-0.22:
+                            leaf_node.append(copy.deepcopy(child))
+
+
+                parents.clear()
+                parents = copy.deepcopy(temp_parents)
 
         step += 1
+
+    # while len(openlist) != 0:
+    #     index = find_least_f(openlist)
+    #     current = openlist[index]
+
+    #     # check where to place the block
+    #     #
+    #     #
+    #     #
+
+    #     current.position = something
+    #     current.point = something
+    #     if current.f >= 0.7 and current.f <= 0.85:
+    #         return current
+
+    #     del openlist[index]
+    #     closelist.append(current)
+    #     childlist = generate_child(
+    #         current)
+
+    #     for i, val in childlist:
+    #         max_width, max_height = limit_boundary(
+    #             0, 0, val.height+current_height)
+    #         if val in closelist:
+    #             continue
+    #         if not check_stability(val):
+    #             closelist.append(val)
+
+    #         elif (val.height+current_height > max_height) or (val.position+blocks[val.block][0]) > max_width:
+    #             closelist.append(val)
+
+    #         if val not in openlist:
+    #             openlist.append(val)
+
+    #         # block = blocks[str(val.block)]
+    #         # val.f = current.f+block[0]*block[1]/(val.max_height*max_width)
 
 
 def find_least_f(openlist):
@@ -390,35 +455,122 @@ def find_least_f(openlist):
     return min_num
 
 
-def check_block_type(pNode):
+def check_block_type(node):
+    nd = copy.deepcopy(node)
     type_list = []
-    while pNode.block != 0:
-        if pNode.block not in type_list:
-            type_list.append(pNode.block)
-        pNode = pNode.parent
+    while nd.block != 0:
+        if nd.block not in type_list:
+            type_list.append(nd.block)
+        nd = nd.parent
     return len(type_list)
 
+# check if block overlap with other blocks
 
-def find_max_height(nd):
-    max_height = 0
-    while nd.block != 0:
-        if(blocks[nd.block][1] >= max_height)
-            max_height = blocks[nd.block][1]
+
+def check_overlap(node):
+    nd = copy.deepcopy(node)
+    start = nd.position
+    end = nd.position+blocks[nd.block][0]
+    shadow_blocks = []
+    contiguous_blocks = []
+    nd = nd.parent_node
+    while nd is not None:
+        if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end):
+            shadow_blocks.append(nd)
+        nd = nd.parent_node
+
+    # sort according to height
+    shadow_blocks.sort(key=lambda x: x.point +
+                       blocks[x.block][1], reverse=false)
+    for block in shadow_blocks:
+        if (block.point+blocks[block.block][1] > nd.point and block.point < point) and ((block.position > start and block.position < end) or (block.position+blocks[block.block][0] > start and block.position+blocks[block.block][0] < end)):
+            return False
+    return True
+
+
+def check_stablity(node):
+    nd = copy.deepcopy(node)
+    start = nd.position
+    end = nd.position+blocks[nd.block][0]
+    shadow_blocks = []
+    contiguous_blocks = []
+    nd = nd.parent_node
+    while nd is not None:
+        if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end):
+            shadow_blocks.append(nd)
+        nd = nd.parent_node
+
+    shadow_blocks.sort(key=lambda x: x.point +
+                       blocks[x.block][1], reverse=false)
+
+    max_point = max(shadow_blocks, key=lambda x: x.point+blocks[x.block])
+
+    for block in shadow_blocks:
+        if block.point+blocks[block.block][1] == max_point:
+            contiguous_blocks.append(block)
+
+    contiguous_blocks.sort(key=lambda x: x.position, reverse=false)
+
+    if len(contiguous_blocks) == 1:
+        if blocks[nd.block][0] >= blocks[contiguous_blocks[0].block][0]:
+            if nd.position+(blocks[nd.block][0])/2.0 == contiguous_blocks[0].position+(blocks[contiguous_blocks[0]][0])/2.0:
+                return True
+            else:
+                return False
+        else:
+            return True
+    elif len(contiguous_blocks) >= 2:
+        if contiguous_blocks[0].position+blocks[contiguous_blocks[0].block][0] > start and contiguous_blocks[len(contiguous_blocks)].position < end:
+            return True
+        else:
+            return False
+
+
+def find_point(position, node):
+    nd = copy.deepcopy(node)
+    while nd is not None:
+        if nd.position < position and nd.position+blocks[nd.block][0] < position:
+            return nd.point+blocks[nd.block][1]
         nd = nd.parent
-    return max_height
+    return 0
 
 
-def generate_child(parent_node, current_height):
+def find_height(node):
+    nd = copy.deepcopy(node)
+    start = nd.position
+    end = nd.position+blocks[nd.block][0]
+    overlap_blocks = []
+    contiguous_blocks = []
+    nd = nd.parent_node
+    while nd is not None:
+        if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end):
+            overlap_blocks.append(nd)
+        nd = nd.parent_node
+
+    overlap_blocks.sort(key=lambda x: x.point, reverse=false)
+
+    point = 0
+
+    for block in overlap_blocks:
+        if block.point >= point:
+            contiguous_blocks.append(block)
+        point = block.point
+
+    contiguous_blocks.sort(key=lambda x: x.position, reverse=false)
+    return contiguous_blocks[0].point
+
+
+def generate_child(parent_node, step):
     childlist = []
     while i < len(blocks):
-        # if blocks[i][1] > parent_node.max_height and parent_node.max_height != 0:
-        #     continue
-        max_width, max_height = limit_boundary(
-            0, 0, current_height)
-        child = node(parent_node)
-        child.block = i
-        child.position = parent_node.position+blocks[parent_node.block][0]
-        child.current_volume = parent.current_volume+blocks[i][0]*blocks[i][1]
+        if step % 2 == 1:
+            if blocks[str(i)][0] > blocks[str(i)][1]:
+                continue
+        else:
+            if blocks[str(i)][0] < blocks[str(i)][1]:
+                continue
+        child = Node(None)
+        child.block = str(i)
         child.g = 1-check_block_type(child)/13.0+child.current_volume / \
             structure_volume
         child.f = child.g
@@ -1202,15 +1354,6 @@ y = symbols("y")
 
 def read_limit():
     file = open("limit_parameter.txt", "r")
-    # l1=file.readline().strip('\n').split(',')
-    # f1=sympify(l1[0])
-    # range1=float(l1[1])
-    # l2=file.readline().strip('\n').split(',')
-    # f2=sympify(l2[0])
-    # range2=float(l2[1])
-    # l3=file.readline().strip('\n').split(',')
-    # f3=sympify(l3[0])
-    # range3=float(l3[1])
     l = file.readline().strip('\n').split(',')
     function = []
     r = []
@@ -1223,28 +1366,25 @@ def read_limit():
     middle = float(file.readline().strip('\n'))
     return Piecewise(*[(sympify(f), y <= float(r))
                        for f, r
-                       in zip(function, r)]), float(r[len(r)-1]), middle
+                       in zip(function, r)]), middle
 
-p, m_height, middle = read_limit()
+p, middle = read_limit()
 
 
-def limit_boundary(max_width, max_height, structure_height):
-    # (height)=f1(next(iter(solveset(Eq(exp1,exp2),x))))
-    # print(p)
+def limit_boundary(structure_height):
     semi_width_point = middle
-    # print("height",height)
-    # print(linsolve(exp2-height,x))
-    # print("structure_height",structure_height)
-    # (x2)=next(iter(solveset(Eq(exp2,height-structure_height),x)))
-    # (x1)=next(iter(solveset(Eq(exp1,height-structure_height),x)))
-
     current_max_width = (
         semi_width_point-p.subs(y, m_height-structure_height))*2
     # print(current_max_width,m_height)
-    return current_max_width, m_height
+    return current_max_width
 
+
+def height_limit(position):
+    position = middle-Abs(middle-position)
+    return p.subs(x, position)
 
 # write level out in desired xml format
+
 
 def write_level_xml(complete_locations, selected_other, final_pig_positions, final_TNT_positions, final_platforms, number_birds, current_level, restricted_combinations):
 
