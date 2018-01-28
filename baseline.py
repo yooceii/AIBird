@@ -1,4 +1,3 @@
-
 from random import randint
 from random import uniform
 from math import sqrt, ceil
@@ -6,6 +5,8 @@ import copy
 from sympy import *
 import numpy as np
 import itertools
+import pandas as pd
+import os.path
 
 # blocks number and size
 blocks = {'1': [0.84, 0.84], '2': [0.85, 0.43], '3': [0.43, 0.85], '4': [0.43, 0.43],
@@ -289,34 +290,39 @@ def generate(structure_height):
 
     while True:
 
-        print(len(temp_leaf))
         if len(temp_leaf) == 0:
             break
         leaf_node = copy.copy(temp_leaf)
         temp_leaf.clear()
 
+        print(step)
         for leaf in leaf_node:
 
             leaf.print()
+
+            # return structure when cannot add more blocks
             if leaf.current_structure_height+0.22 > structure_height:
-                continue
+                return start
             parents = []
             temp_parents = []
             x1, x2 = limit_boundary(
                 leaf.current_structure_height+leaf.max_height)
             sections = np.arange(x1, x2, 0.22)
             parents.append(leaf)
+            print(x1, x2)
             # each position
             for position in sections:
                 position = round(position, 2)
                 print(position)
                 temp_parents.clear()
                 # blocks in the same position
+                print("parents", len(parents))
                 for parent_node in parents:
 
-                    parent_node.print()
+                    # parent_node.print()
                     childlist = generate_child(parent_node, step)
                     empty = True
+                    # print("childlist", len(childlist))
                     for child in childlist:
                         if parent_node.max_height == 0:
                             child.max_height = blocks[child.block][1]
@@ -324,52 +330,120 @@ def generate(structure_height):
                             child.max_height = parent_node.max_height
                         child.position = position
                         child.point = find_point(position, parent_node)
+                        if child.point < parent_node.current_structure_height:
+                            break
                         if check_stablity(child, parent_node) and (position+blocks[child.block][0]) <= x2 and (child.point+blocks[child.block][1] <= height_limit(position)) and (child.max_height >= blocks[child.block][1]):
-                            if position+blocks[child.block][0]+0.22 > x2:
-                                if blocks[child.block][1] == child.max_height:
-                                    child.parent = parent_node
-                                    if position > x2-0.22:
-                                        temp_leaf.append(child)
-                            else:
-                                child.parent = parent_node
-                                if position > x2-0.22:
-                                    temp_leaf.append(child)
+                            # if position+blocks[child.block][0]+0.22 > x2:
+                            #     if blocks[child.block][1] == child.max_height:
+                            #         child.parent = parent_node
+                            #         if position > x2-0.22:
+                            #             temp_leaf.append(child)
+                            #             # child.print()
+                            # else:
+                            child.parent = parent_node
+                            if position+blocks[child.block][0] > x2-0.22:
+                                temp_leaf.append(child)
+                                # child.print()
                             temp_parents.append(child)
-                            empty = False
-
-                        if position == 0:
+                            #empty = False
+                            # child.print()
+                        # initialize current_structure
+                        if position == x1:
                             child.current_structure_height = parent_node.current_structure_height + \
                                 parent_node.max_height
                         else:
                             child.current_structure_height = parent_node.current_structure_height
                         # child.print()
                     # if no child is suitable
-                    if empty:
-                        child = Node(parent_node)
-                        child.block = str(0)
-                        child.max_height = parent_node.max_height
-                        temp_parents.append(child)
+                    # if empty:
+                    child = Node(parent_node)
+                    child.block = str(0)
+                    child.max_height = parent_node.max_height
+                    temp_parents.append(child)
+                    # child.print()
 
-                        if position == 0:
-                            child.current_structure_height = parent_node.current_structure_height + \
-                                parent_node.max_height
-                        else:
-                            child.current_structure_height = parent_node.current_structure_height
+                    if position == x1:
+                        child.current_structure_height = parent_node.current_structure_height + \
+                            parent_node.max_height
+                    else:
+                        child.current_structure_height = parent_node.current_structure_height
 
-                        if position > x2-0.22:
-                            temp_leaf.append(child)
+                        # if position > x2-0.22:
+                        #     temp_leaf.append(child)
 
                 parents.clear()
                 parents = copy.copy(temp_parents)
-
-            leaf_node.clear()
+        if step == 1:
+            prune(start, temp_leaf)
+        leaf_node.clear()
         step += 1
-        print(step)
 
     construct(start)
 
 
 def construct(node):
+    pass
+
+
+def prune(parent, leaves):
+    columns = []
+    for leaf in leaves:
+        column = []
+        while leaf is not parent:
+            column.insert(0, leaf)
+            leaf = leaf.parent
+        columns.append(column)
+    print("len:", len(columns))
+    # sort columns according to columns' first node
+    columns_tree = []
+    for x in columns:
+        if x[0] not in columns_tree:
+            columns_tree.append([x[0]])
+        else:
+            ([x for x in columns_tree if x[0] in x][0]).append(x)
+
+    for x in range(0, len(columns_tree)):
+        cosine_simility(columns_tree[x])
+
+
+def cosine_simility(columns):
+    print(type(columns))
+    start, end = limit_boundary(
+        columns[0].current_structure_height+columns[0].max_height)
+    for index, val in enumerate(columns[1:]):
+        columns[1+index] = vectorization(val, start.end)
+        unit_vector = np.zeros(len(columns[1+index]))
+        unit_vector[0] = 1
+        # calculate cosine value between vector and unit vector
+        columns[1+index] = np.dot(columns[1+index],
+                                  unit_vector)/np.linalg.norm(columns[1+index])
+
+
+def vectorization(column, start, end):
+    column_vector = np.zeros((np.arange(start, end, 0.22), 2))
+    for block in column:
+        if block.block != str(0):
+            width = blocks[block.block][0]
+            height = blocks[block.block][1]
+            position = round(block.position/0.22)
+            for x in np.arange(0, width, 0.22):
+                if x+0.22 < width:
+                    column_vector[position+x/0.22][0] = 0.22
+                elif x+0.22 >= width:
+                    column_vector[position+x/0.22][0] = x+0.22-width
+                column_vector[position+x/0.22][1] = height
+    column_vector_flatten = column_vector.flatten()
+    df = pd.DataFrame([column_vector_flatten])
+    if os.path.isfile("export.csv"):
+        with open('export.csv', 'a') as f:
+            df.to_csv(f, header=False)
+    else:
+        df.to_csv('export.csv')
+
+    return column_vector_flatten
+
+
+def cluster(columns):
     pass
 
 
@@ -460,9 +534,13 @@ def check_stablity(node, parent):
 
 
 def find_point(position, node):
+    current_structure_height = node.current_structure_height
     nd = copy.deepcopy(node)
     while nd.is_start != 1:
         if nd.block == "0":
+            nd = nd.parent
+            continue
+        if nd.point == current_structure_height:
             nd = nd.parent
             continue
         if nd.position < position and nd.position+blocks[nd.block][0] > position:
@@ -472,6 +550,7 @@ def find_point(position, node):
 
 
 def find_height(node):
+    current_structure_height = node.current_structure_height
     nd = copy.deepcopy(node)
     start = nd.position
     end = nd.position+blocks[nd.block][0]
@@ -480,6 +559,9 @@ def find_height(node):
     nd = nd.parent
     while nd.is_start == 0:
         if nd.block == "0":
+            nd = nd.parent
+            continue
+        if nd.point == current_structure_height:
             nd = nd.parent
             continue
         if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end):
@@ -502,9 +584,11 @@ def find_height(node):
 def generate_child(parent_node, step):
     childlist = []
     for key, val in blocks.items():
+        # step is odd number, horizontal alignment
         if step % 2 == 1:
             if val[0] > val[1]:
                 continue
+        # step is even number, vertical alignment
         else:
             if val[0] < val[1]:
                 continue
@@ -1330,7 +1414,7 @@ def limit_boundary(structure_height):
 def height_limit(position):
     position = middle-Abs(middle-position)
     y_limit = py.subs(x, position)
-
+    #print("y_limit", y_limit)
     if y_limit == 0:
         return min(solve(px-position, y))
     else:
@@ -1402,7 +1486,7 @@ def write_level_xml(complete_locations, selected_other, final_pig_positions, fin
 # generate levels using input parameters
 
 
-generate(7.0)
+generate(m_height)
 # backup_probability_table_blocks = copy.deepcopy(probability_table_blocks)
 # backup_materials = copy.deepcopy(materials)
 
