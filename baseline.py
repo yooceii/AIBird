@@ -108,7 +108,8 @@ class Node(object):
         self.position = 0
         self.point = 0
         self.max_height = 0
-        self.is_start = 0
+        self.is_start = 0  # test if the node is the structure's head
+        self.is_head = 0  # test if the node is the row's head
 
     def print(self):
         # for i in self.__dict__.items():
@@ -273,6 +274,7 @@ def generate(structure_height):
     start.g = 0
     start.h = 0
     start.is_start = 1
+    start.is_head = 1
     # openlist = []
     # closelist = [start]
     # complete_locations = []
@@ -330,9 +332,14 @@ def generate(structure_height):
                             child.max_height = parent_node.max_height
                         child.position = position
                         child.point = find_point(position, parent_node)
-                        if child.point < parent_node.current_structure_height:
-                            break
-                        if check_stablity(child, parent_node) and (position+blocks[child.block][0]) <= x2 and (child.point+blocks[child.block][1] <= height_limit(position)) and (child.max_height >= blocks[child.block][1]):
+                        # print("1", child.point,
+                        #      parent_node.current_structure_height)
+                        # print(check_stablity(child, parent_node), (position+blocks[child.block][
+                        # 0]) <= x2, (blocks[child.block][1] <=
+                        # (height_limit(position)-child.point)*2))
+                        if child.point != parent_node.current_structure_height:
+                            continue
+                        if check_stablity(child, parent_node) and (position+blocks[child.block][0]) <= x2 and (blocks[child.block][1] <= (height_limit(position+blocks[child.block][0]/2, child.point)-child.point)*2) and (parent_node.is_head == 1 or check_overlap(child, parent_node)):
                             # if position+blocks[child.block][0]+0.22 > x2:
                             #     if blocks[child.block][1] == child.max_height:
                             #         child.parent = parent_node
@@ -340,12 +347,16 @@ def generate(structure_height):
                             #             temp_leaf.append(child)
                             #             # child.print()
                             # else:
+                            # print("block", blocks[child.block][
+                             #     0], blocks[child.block][1])
                             child.parent = parent_node
                             if position+blocks[child.block][0] > x2-0.22:
+                                child.is_head = 1
                                 temp_leaf.append(child)
+
                                 # child.print()
                             temp_parents.append(child)
-                            #empty = False
+                            empty = False
                             # child.print()
                         # initialize current_structure
                         if position == x1:
@@ -355,11 +366,11 @@ def generate(structure_height):
                             child.current_structure_height = parent_node.current_structure_height
                         # child.print()
                     # if no child is suitable
-                    # if empty:
-                    child = Node(parent_node)
-                    child.block = str(0)
-                    child.max_height = parent_node.max_height
-                    temp_parents.append(child)
+                    if empty:
+                        child = Node(parent_node)
+                        child.block = str(0)
+                        child.max_height = parent_node.max_height
+                        temp_parents.append(child)
                     # child.print()
 
                     if position == x1:
@@ -372,8 +383,11 @@ def generate(structure_height):
                         #     temp_leaf.append(child)
 
                 parents.clear()
+                # if len(temp_parents) > 1000:
+                #     prune(start, temp_parents)
                 parents = copy.copy(temp_parents)
         if step == 1:
+            print("----------------------------------")
             prune(start, temp_leaf)
         leaf_node.clear()
         step += 1
@@ -389,29 +403,36 @@ def prune(parent, leaves):
     columns = []
     for leaf in leaves:
         column = []
-        while leaf is not parent:
-            column.insert(0, leaf)
-            leaf = leaf.parent
+        temp_leaf = copy.deepcopy(leaf)
+        # temp_leaf.print()
+        while temp_leaf.is_start != 1:
+            column.insert(0, temp_leaf)
+            # if temp_leaf.is_start == 1:
+            #     print("head")
+            temp_leaf = temp_leaf.parent
         columns.append(column)
-    print("len:", len(columns))
     # sort columns according to columns' first node
-    columns_tree = []
-    for x in columns:
-        if x[0] not in columns_tree:
-            columns_tree.append([x[0]])
-        else:
-            ([x for x in columns_tree if x[0] in x][0]).append(x)
+    # columns_tree = []
+    # for x in columns:
+    #     if x[0] not in columns_tree:
+    #         columns_tree.append([x[0]])
+    #     else:
+    #         ([y for y in columns_tree if x[0] in y][0]).append(x)
 
-    for x in range(0, len(columns_tree)):
-        cosine_simility(columns_tree[x])
+    # for x in range(0, len(columns_tree)):
+    #     cosine_simility(columns_tree[x])
+    for x in columns:
+        start, end = limit_boundary(
+            x[0].current_structure_height)
+        vectorization(x, start, end)
 
 
 def cosine_simility(columns):
-    print(type(columns))
     start, end = limit_boundary(
-        columns[0].current_structure_height+columns[0].max_height)
+        columns[0].current_structure_height)
+    print(len(columns))
     for index, val in enumerate(columns[1:]):
-        columns[1+index] = vectorization(val, start.end)
+        columns[1+index] = vectorization(val, start, end)
         unit_vector = np.zeros(len(columns[1+index]))
         unit_vector[0] = 1
         # calculate cosine value between vector and unit vector
@@ -420,25 +441,32 @@ def cosine_simility(columns):
 
 
 def vectorization(column, start, end):
-    column_vector = np.zeros((np.arange(start, end, 0.22), 2))
+    column_vector = np.zeros((len(np.arange(start, end, 0.22)), 2))
     for block in column:
+        #print(block.position, blocks[block.block][0], blocks[block.block][1])
         if block.block != str(0):
             width = blocks[block.block][0]
             height = blocks[block.block][1]
-            position = round(block.position/0.22)
+            position = int(block.position/0.22)
+            print(position, width, height)
+            # print(position)
+            # print(column_vector)
             for x in np.arange(0, width, 0.22):
-                if x+0.22 < width:
-                    column_vector[position+x/0.22][0] = 0.22
-                elif x+0.22 >= width:
-                    column_vector[position+x/0.22][0] = x+0.22-width
-                column_vector[position+x/0.22][1] = height
+                if x+0.22 <= width:
+                    column_vector[int(position+x/0.22)][0] = 0.22
+                elif x+0.22 > width:
+                    column_vector[int(position+x/0.22)][0] = width-x
+                column_vector[int(position+x/0.22)][1] = height
     column_vector_flatten = column_vector.flatten()
     df = pd.DataFrame([column_vector_flatten])
+    # print("vectorization")
     if os.path.isfile("export.csv"):
         with open('export.csv', 'a') as f:
             df.to_csv(f, header=False)
+        # print("export")
     else:
         df.to_csv('export.csv')
+        # print("export")
 
     return column_vector_flatten
 
@@ -471,24 +499,32 @@ def check_block_type(node):
 
 def check_overlap(node, parent):
     nd = copy.deepcopy(parent)
-    start = node.position
-    end = node.position+blocks[node.block][0]
-    shadow_blocks = []
-    contiguous_blocks = []
-    if nd.is_start == 1:
-        return True
-    while nd.is_start != 1:
-        if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end):
-            shadow_blocks.append(nd)
+    while nd.is_head != 1:
+        if nd.block != str(0):
+            if nd.position+blocks[nd.block][0] >= node.position:
+                return False
+            else:
+                return True
         nd = nd.parent
-
-    # sort according to height
-    shadow_blocks.sort(key=lambda x: x.point +
-                       blocks[x.block][1], reverse=False)
-    for block in shadow_blocks:
-        if (block.point+blocks[block.block][1] > nd.point and block.point < point) and ((block.position > start and block.position < end) or (block.position+blocks[block.block][0] > start and block.position+blocks[block.block][0] < end)):
-            return False
     return True
+    # start = node.position
+    # end = node.position+blocks[node.block][0]
+    # shadow_blocks = []
+    # contiguous_blocks = []
+    # if nd.is_start == 1:
+    #     return True
+    # while nd.is_start != 1:
+    #     if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end):
+    #         shadow_blocks.append(nd)
+    #     nd = nd.parent
+
+    # # sort according to height
+    # shadow_blocks.sort(key=lambda x: x.point +
+    #                    blocks[x.block][1], reverse=False)
+    # for block in shadow_blocks:
+    #     if (block.point+blocks[block.block][1] > nd.point and block.point < point) and ((block.position > start and block.position < end) or (block.position+blocks[block.block][0] > start and block.position+blocks[block.block][0] < end)):
+    #         return False
+    # return True
 
 
 def check_stablity(node, parent):
@@ -583,15 +619,21 @@ def find_height(node):
 
 def generate_child(parent_node, step):
     childlist = []
+    #print("2", parent_node.max_height)
     for key, val in blocks.items():
-        # step is odd number, horizontal alignment
+        # step is odd number, vertical alignment
         if step % 2 == 1:
             if val[0] > val[1]:
                 continue
-        # step is even number, vertical alignment
+            elif parent_node.is_head == 0 and val[1] > parent_node.max_height:
+                continue
+        # step is even number, horizontal alignment
         else:
             if val[0] < val[1]:
                 continue
+            elif parent_node.is_head == 0 and val[1] != parent_node.max_height:
+                continue
+        # print(val)
         child = Node()
         child.block = str(key)
         # child.g = 1-check_block_type(child)/13.0+child.current_volume / \
@@ -1411,14 +1453,14 @@ def limit_boundary(structure_height):
     return px.subs(y, structure_height), px.subs(y, structure_height)+current_max_width
 
 
-def height_limit(position):
+def height_limit(position, point):
     position = middle-Abs(middle-position)
     y_limit = py.subs(x, position)
-    #print("y_limit", y_limit)
+    # print("y_limit", y_limit)
     if y_limit == 0:
-        return min(solve(px-position, y))
+        return min(list(filter(lambda x: x >= point, solve(px-position, y))))
     else:
-        return min(solve(px-position, y)+[y_limit])
+        return min(list(filter(lambda x: x >= point, solve(px-position, y)+[y_limit])))
 
 # write level out in desired xml format
 
