@@ -505,9 +505,9 @@ def vectorization(column, start, end):
             # print(column_vector)
             for x in np.arange(0, width, 0.22):
                 if x+0.22 <= width:
-                    column_vector[int(position+x/0.22)][0] = 0.22
+                    column_vec tor[int(position+x/0.22)][0] = 0.22
                 elif x+0.22 > width:
-                    column_veor[int(position+x/0.22)][0] = width-x
+                    column_vector[int(position+x/0.22)][0] = width-x
                 column_vector[int(position+x/0.22)][1] = height
     column_vector_flatten = column_vector.flatten()
     df = pd.DataFrame([column_vector_flatten])
