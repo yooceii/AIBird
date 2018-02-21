@@ -1,12 +1,16 @@
 from random import randint
 from random import uniform
 from math import sqrt, ceil
+from pathlib import Path
+import matlab.engine
 import copy
 from sympy import *
 import numpy as np
 import itertools
 import pandas as pd
 import os.path
+import pickle
+import time
 
 # blocks number and size
 blocks = {'1': [0.84, 0.84], '2': [0.85, 0.43], '3': [0.43, 0.85], '4': [0.43, 0.43],
@@ -105,15 +109,13 @@ class Node(object):
         self.parent = arg
         self.block = str(0)
         self.current_structure_height = 0
-        self.position = 0
-        self.point = 0
+        self.position = 0  # left
+        self.point = 0  # bottom
         self.max_height = 0
         self.is_start = 0  # test if the node is the structure's head
         self.is_head = 0  # test if the node is the row's head
 
     def print(self):
-        # for i in self.__dict__.items():
-        #     print(i)
         print(*self.__dict__.items(), sep=' ')
 
 
@@ -386,26 +388,67 @@ def generate(structure_height):
                 # if len(temp_parents) > 1000:
                 #     prune(start, temp_parents)
                 parents = copy.copy(temp_parents)
-        if step == 1:
-            print("----------------------------------")
-            prune(start, temp_leaf)
+        print("----------------------------------")
+        if len(temp_leaf) > 15:
+            temp_leaf = prune(start, temp_leaf)
+
         leaf_node.clear()
         step += 1
 
-    construct(start)
+    construct(temp_leaf)
 
 
-def construct(node):
-    pass
+def construct(nodes):
+    structures = []
+    i = 4
+    for node in nodes:
+        complete_locations = []
+        while node.is_start != 1:
+            complete_locations.append(
+                [node.block, level_width_min+node.position+blocks[node.block]/2.0, absolute_ground+node.point+blocks[node.block]/2.0])
+            node = node.parent
+        write_level_xml(complete_locations.reverse(), [
+                        []], [[]], [[]], [[]], i, 5, [[]])
+        filehandler = open('structure'+i, 'w')
+        pickle.dump(node)
+        i = i+1
+        structures.append(complete_locations.reverse())
+    return structures
+
+
+# def rebuild_node(nodes):  # need to rebuild entire row!!!
+#     parents_nodes = []
+#     parents = []
+#     for node in nodes:
+#         parents_nodes.append([node[i:i+2] for i in range(0, len(node), 2)])
+#     for parent_node in parents_nodes:
+#         node = Node(None)
+#         node.is_head, node.is_start = 1, 1
+#         node.current_structure_height = max(
+#             [parent_node[i][1] for i in range(0, len(parent_node))])
+#         for i in parent_node:
+#             height = i[1]
+#             candidates = find_block(height)
+#             for j in parent_node[i:]:
+
+#         parents.append(node)
+#     for node in parents:
+#         node.print()
+#     return parents
 
 
 def prune(parent, leaves):
+    file = Path("export.csv")
+    if file.is_file():
+        os.remove("export.csv")
     columns = []
     for leaf in leaves:
         column = []
         temp_leaf = copy.deepcopy(leaf)
         # temp_leaf.print()
-        while temp_leaf.is_start != 1:
+        column.insert(0, temp_leaf)
+        temp_leaf = temp_leaf.parent
+        while temp_leaf.is_head != 1:  # might abort at begining
             column.insert(0, temp_leaf)
             # if temp_leaf.is_start == 1:
             #     print("head")
@@ -425,12 +468,21 @@ def prune(parent, leaves):
         start, end = limit_boundary(
             x[0].current_structure_height)
         vectorization(x, start, end)
+    eng = matlab.engine.start_matlab()
+    eng.Structure_prune(nargout=0)
+    closestIdx = eng.workspace['closestIdx']
+    # parent_nodes=rebuild_node([list(map(lambda x: round(x, 2), i)) for i in prune_result])
+    parent_nodes = []
+    for i in closestIdx[0]:
+        parent_nodes.append(leaves[i])
+    eng.quit()
+    return parent_nodes
 
 
 def cosine_simility(columns):
     start, end = limit_boundary(
         columns[0].current_structure_height)
-    print(len(columns))
+    # print(len(columns))
     for index, val in enumerate(columns[1:]):
         columns[1+index] = vectorization(val, start, end)
         unit_vector = np.zeros(len(columns[1+index]))
@@ -443,19 +495,19 @@ def cosine_simility(columns):
 def vectorization(column, start, end):
     column_vector = np.zeros((len(np.arange(start, end, 0.22)), 2))
     for block in column:
-        #print(block.position, blocks[block.block][0], blocks[block.block][1])
+        # print(block.position, blocks[block.block][0], blocks[block.block][1])
         if block.block != str(0):
             width = blocks[block.block][0]
             height = blocks[block.block][1]
             position = int(block.position/0.22)
-            print(position, width, height)
+            print("vectorization", position, width, height, start, end)
             # print(position)
             # print(column_vector)
             for x in np.arange(0, width, 0.22):
                 if x+0.22 <= width:
                     column_vector[int(position+x/0.22)][0] = 0.22
                 elif x+0.22 > width:
-                    column_vector[int(position+x/0.22)][0] = width-x
+                    column_veor[int(position+x/0.22)][0] = width-x
                 column_vector[int(position+x/0.22)][1] = height
     column_vector_flatten = column_vector.flatten()
     df = pd.DataFrame([column_vector_flatten])
@@ -463,16 +515,10 @@ def vectorization(column, start, end):
     if os.path.isfile("export.csv"):
         with open('export.csv', 'a') as f:
             df.to_csv(f, header=False)
-        # print("export")
     else:
         df.to_csv('export.csv')
-        # print("export")
 
-    return column_vector_flatten
-
-
-def cluster(columns):
-    pass
+    # return column_vector_flatten
 
 
 def find_least_f(openlist):
@@ -507,24 +553,6 @@ def check_overlap(node, parent):
                 return True
         nd = nd.parent
     return True
-    # start = node.position
-    # end = node.position+blocks[node.block][0]
-    # shadow_blocks = []
-    # contiguous_blocks = []
-    # if nd.is_start == 1:
-    #     return True
-    # while nd.is_start != 1:
-    #     if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end):
-    #         shadow_blocks.append(nd)
-    #     nd = nd.parent
-
-    # # sort according to height
-    # shadow_blocks.sort(key=lambda x: x.point +
-    #                    blocks[x.block][1], reverse=False)
-    # for block in shadow_blocks:
-    #     if (block.point+blocks[block.block][1] > nd.point and block.point < point) and ((block.position > start and block.position < end) or (block.position+blocks[block.block][0] > start and block.position+blocks[block.block][0] < end)):
-    #         return False
-    # return True
 
 
 def check_stablity(node, parent):
@@ -617,9 +645,17 @@ def find_height(node):
     return contiguous_blocks[0].point
 
 
+def find_block(height):
+    candidates = []
+    for index, size in blocks.items():
+        if height == size[1]:
+            candidates.append(blocks.get(index))
+    return candidates
+
+
 def generate_child(parent_node, step):
     childlist = []
-    #print("2", parent_node.max_height)
+    # print("2", parent_node.max_height)
     for key, val in blocks.items():
         # step is odd number, vertical alignment
         if step % 2 == 1:
@@ -1441,6 +1477,7 @@ def read_limit():
                                                              for f, ly
                                                              in zip(function_y, ly)]), float(lx[len(lx)-1]), middle
 
+
 px, py, m_height, middle = read_limit()
 print(px)
 print(py)
@@ -1527,7 +1564,14 @@ def write_level_xml(complete_locations, selected_other, final_pig_positions, fin
 
 # generate levels using input parameters
 
+# eng = matlab.engine.start_matlab()
+# eng.Structure_prune(nargout=0)
+# a = eng.workspace['Ctrs']
+# a = [list(map(lambda x: round(x, 2), i)) for i in a]
+# print(a)
+# rebuild_node(a)
 
+print(time.ctime())
 generate(m_height)
 # backup_probability_table_blocks = copy.deepcopy(probability_table_blocks)
 # backup_materials = copy.deepcopy(materials)
@@ -1614,3 +1658,4 @@ generate(m_height)
 #             write_level_xml(complete_locations, selected_other, final_pig_positions, final_TNT_positions,
 #                             final_platforms, number_birds, level_name, restricted_combinations)
 #         finished_levels = finished_levels + number_levels
+# er_levels
