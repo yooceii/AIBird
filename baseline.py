@@ -290,7 +290,7 @@ def generate(structure_height):
     x1, x2 = limit_boundary(height)
 
     # maybe using linspace
-    sections = np.arange(x1, x2, 0.22)
+    sections = np.arange(x1, x2, 0.30)
     signal = True
     while signal:
 
@@ -307,7 +307,7 @@ def generate(structure_height):
             print(x1, x2)
             x1, x2 = limit_boundary(
                 leaf.current_structure_height+leaf.max_height)
-            sections = np.arange(x1, x2, 0.22)
+            sections = np.arange(x1, x2, 0.30)
             parents.append(leaf)
             # each position
             for position in sections:
@@ -360,7 +360,7 @@ def generate(structure_height):
                             # print("block", blocks[child.block][
                              #     0], blocks[child.block][1])
                             child.parent = parent_node
-                            if position+blocks[child.block][0] > x2-0.22:
+                            if position+blocks[child.block][0] > x2-0.30:
                                 child.is_head = 1
                                 temp_leaf.append(child)
 
@@ -381,7 +381,7 @@ def generate(structure_height):
                         child.max_height = parent_node.max_height
                         child.position = position
                         child.point = child.current_structure_height
-                        if x2-position <= 0.22:
+                        if x2-position <= 0.30:
                             child.is_head = 1
                             temp_leaf.append(child)
                         child.print()
@@ -421,7 +421,7 @@ def construct(nodes):
             if node.block != str(0):
                 node.print()
                 complete_locations.append(
-                    [node.block, level_width_min+node.position+round(blocks[node.block][0]/2.0, 3), absolute_ground+node.point+round(blocks[node.block][1]/2.0, 3)])
+                    [node.block, round(level_width_min+node.position+round(blocks[node.block][0]/2.0, 3),3), round(absolute_ground+node.point+round(blocks[node.block][1]/2.0, 3),3)])
             node = node.parent
         write_level_xml(list(reversed(complete_locations)),
                         [], [], [], [], 5, i, [])
@@ -494,7 +494,7 @@ def vectorization(column, start, end, step):
     # pickle.dump(column, filehandler)
     # with open('column', 'ab') as filehandler:
     #     pickle.dump(column, filehandler)
-    column_vector = np.zeros((len(np.arange(start, end, 0.22)), 2))
+    column_vector = np.zeros((len(np.arange(start, end, 0.30)), 2))
     # print(start, end, np.shape(column_vector),
     #       column_vector, np.arange(start, end, 0.22))
     for block in column:
@@ -502,16 +502,16 @@ def vectorization(column, start, end, step):
         if block.block != str(0):
             width = blocks[block.block][0]
             height = blocks[block.block][1]
-            position = int((block.position-start)/0.22)
+            position = int((block.position-start)/0.30)
             # print("vectorization", position, width, height, start, end)
             # print(position)
             # print(column_vector)
-            for x in np.arange(0, width, 0.22):
-                if x+0.22 <= width:
-                    column_vector[int(position+x/0.22)][0] = 0.22
-                elif x+0.22 > width:
-                    column_vector[int(position+x/0.22)][0] = width-x
-                column_vector[int(position+x/0.22)][1] = height
+            for x in np.arange(0, width, 0.30):
+                if x+0.30 <= width:
+                    column_vector[int(position+x/0.30)][0] = 0.30
+                elif x+0.30 > width:
+                    column_vector[int(position+x/0.30)][0] = width-x
+                column_vector[int(position+x/0.30)][1] = height
     column_vector_flatten = column_vector.flatten()
     df = pd.DataFrame([column_vector_flatten])
     # print("vectorization")
