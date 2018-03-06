@@ -6,11 +6,10 @@ import matlab.engine
 import copy
 from sympy import *
 import numpy as np
-import itertools
 import pandas as pd
 import os.path
-import pickle
 import time
+import logging
 
 # blocks number and size
 blocks = {'1': [0.84, 0.84], '2': [0.85, 0.43], '3': [0.43, 0.85], '4': [0.43, 0.43],
@@ -98,7 +97,7 @@ ground_structure_height_limit = (
 max_attempts = 100
 
 #step
-gap=0.40
+gap=0.45
 
 
 class Node(object):
@@ -275,6 +274,7 @@ def find_structure_height(structure):
 
 
 def generate(structure_height):
+    structures=[]
     start = Node(None)
     start.g = 0
     start.h = 0
@@ -290,10 +290,10 @@ def generate(structure_height):
     step = 1
     height = 0
     # relate to previous child
-    x1, x2 = limit_boundary(height)
+    # x1, x2 = limit_boundary(height)
 
     # maybe using linspace
-    sections = np.arange(x1, x2, gap)
+    # sections = np.arange(x1, x2, gap)
     signal = True
     while signal:
 
@@ -302,26 +302,33 @@ def generate(structure_height):
 
         print("\n\nstep:", step, "\n\n")
         for leaf in leaf_node:
-
+            # return structure when cannot add more blocks
+            print('\n',leaf.current_structure_height,leaf.max_height,structure_height)
+            if leaf.current_structure_height+leaf.max_height+0.22 > structure_height:
+                # data_logger.info(leaf.current_structure_height+' '+leaf.max_height)
+                print("\nstructure\n")
+                structures.append(leaf)
+                continue
             leaf.print()
             parents = []
             temp_parents = []
-            x1, x2 = round(x1, 2), round(x2, 2)
-            print(x1, x2)
+            # x1, x2 = round(x1, 2), round(x2, 2)
             x1, x2 = limit_boundary(
                 leaf.current_structure_height+leaf.max_height)
+            print(type(x1),x1,type(x2), x2)
+            x1, x2 = round(x1, 2), round(x2, 2)
             sections = np.arange(x1, x2, gap)
             parents.append(leaf)
             # each position
             for position in sections:
                 position = round(position, 2)
-                print(position)
+                print('\n',position)
                 temp_parents.clear()
                 # blocks in the same position
                 print("parents", len(parents))
                 for parent_node in parents:
 
-                    # parent_node.print()
+                    #   parent_node.print()
                     childlist = generate_child(parent_node, step)
                     empty = True
                     if position != x1 and parent_node.is_head == 1:
@@ -329,21 +336,26 @@ def generate(structure_height):
                         continue
                     # print("childlist", len(childlist))
                     for child in childlist:
-                        if parent_node.max_height == 0:
-                            child.max_height = blocks[child.block][1]
+                        # if parent_node.max_height == 0:
+                        #     child.max_height = round(blocks[child.block][1],2)
+                        # else:
+                        #     child.max_height = round(parent_node.max_height,2)
+                        if parent_node.is_head!=1 and parent_node.max_height!=0:
+                            child.max_height=round(parent_node.max_height,2)
                         else:
-                            child.max_height = parent_node.max_height
+                            child.max_height = round(blocks[child.block][1],2)
 
                         # initialize current_structure
                         if position == x1:
-                            child.current_structure_height = parent_node.current_structure_height + \
-                                parent_node.max_height
+                            child.current_structure_height = round(parent_node.current_structure_height + \
+                                parent_node.max_height,2)
                         else:
-                            child.current_structure_height = parent_node.current_structure_height
+                            child.current_structure_height = round(parent_node.current_structure_height,2)
 
                         child.position = position
-                        child.point = find_point(
-                            position, parent_node, child.current_structure_height)
+                        # child.point = find_point(
+                        #     position, parent_node, child.current_structure_height)
+                        child.point=child.current_structure_height
                         print("--------------------test-----------------\n", child.point,
                               child.block, position, child.current_structure_height)
                         # print(check_stablity(child, parent_node), (position+blocks[child.block][0]) <= x2, (blocks[child.block][1] <= (
@@ -352,7 +364,7 @@ def generate(structure_height):
                         #     child, parent_node), parent_node.is_head)
                         if child.point != parent_node.current_structure_height:
                             continue
-                        if check_stablity(child, parent_node) and (position+blocks[child.block][0]) <= x2 and (blocks[child.block][1] <= (height_limit(position+blocks[child.block][0]/2, child.point)-child.point)*2) and (position == x1 or check_overlap(child, parent_node)):
+                        if check_stablity(child, parent_node) and (position+blocks[child.block][0]) <= x2 and (blocks[child.block][1] <= height_limit(position, child.point)-child.point) and (position == x1 or check_overlap(child, parent_node)):
                             # if position+blocks[child.block][0]+0.22 > x2:
                             #     if blocks[child.block][1] == child.max_height:
                             #         child.parent = parent_node
@@ -363,7 +375,7 @@ def generate(structure_height):
                             # print("block", blocks[child.block][
                              #     0], blocks[child.block][1])
                             child.parent = parent_node
-                            if position+blocks[child.block][0] > x2-gap:
+                            if position+blocks[child.block][0] > x2-0.30:
                                 child.is_head = 1
                                 temp_leaf.append(child)
 
@@ -376,15 +388,18 @@ def generate(structure_height):
                     if empty:
                         child = Node(parent_node)
                         if position == x1:
-                            child.current_structure_height = parent_node.current_structure_height + \
-                                parent_node.max_height
+                            child.current_structure_height = round(parent_node.current_structure_height + \
+                                parent_node.max_height,2)
                         else:
-                            child.current_structure_height = parent_node.current_structure_height
+                            child.current_structure_height = round(parent_node.current_structure_height,2)
                         child.block = str(0)
-                        child.max_height = parent_node.max_height
+                        if parent_node.is_head!=1 and parent_node.max_height!=0:
+                            child.max_height=round(parent_node.max_height,2)
+                        else:
+                            child.max_height = round(0,2)
                         child.position = position
                         child.point = child.current_structure_height
-                        if x2-position <= gap:
+                        if x2-position <= 0.22:
                             child.is_head = 1
                             temp_leaf.append(child)
                         child.print()
@@ -397,22 +412,17 @@ def generate(structure_height):
                 parents.clear()
                 parents = copy.copy(temp_parents)
         print("----------------------------------")
-        if len(temp_leaf) > 15:
+        if len(temp_leaf) > 50:
             # if step == 1:
             temp_leaf = prune(temp_leaf, step)
-        elif len(temp_leaf) == 0:
+        if len(temp_leaf) == 0:
             signal = False
-            break
-        # return structure when cannot add more blocks
-        elif leaf.current_structure_height+leaf.max_height+0.22 > structure_height:
-            signal = False
-            print("\n ----------------------end------------------------- \n")
             break
         print(len(leaf_node))
         leaf_node.clear()
         step += 1
-    print("finished", len(leaf_node))
-    construct(leaf_node)
+    print("finished", len(structures))
+    construct(structures)
 
 
 def construct(nodes):
@@ -422,16 +432,18 @@ def construct(nodes):
         complete_locations = []
         while node.is_start != 1:
             if node.block != str(0):
-                node.print()
+                # node.print()
                 complete_locations.append(
-                    [node.block, round(level_width_min+node.position+round(blocks[node.block][0]/2.0, 3),3), round(absolute_ground+node.point+round(blocks[node.block][1]/2.0, 3),3)])
+                    [int(node.block), round(level_width_min+node.position+round(blocks[node.block][0]/2.0, 3),3), round(absolute_ground+node.point+round(blocks[node.block][1]/2.0, 3),3)])
             node = node.parent
-        write_level_xml(list(reversed(complete_locations)),
-                        [], [], [], [], 5, i, [])
+        complete_locations, final_pig_positions=find_pig_position(list(reversed(complete_locations)))
+        write_level_xml(complete_locations,
+                        [], final_pig_positions, [], [], 5, i, [])
         # filehandler = open('structure'+i, 'w')
         # pickle.dump(node, filehandler)
         i = i+1
         structures.append(complete_locations.reverse())
+        print('\n')
     return structures
 
 
@@ -552,7 +564,7 @@ def check_block_type(node):
 def check_overlap(node, parent):
     nd = copy.copy(parent)
     if nd.is_head == 1:
-        return False
+        return True
     while nd.is_head != 1:
         if nd.block != str(0):
             if nd.position+blocks[nd.block][0] > node.position:
@@ -569,7 +581,6 @@ def check_stablity(node, parent):
     end = node.position+blocks[node.block][0]
     shadow_blocks = []
     contiguous_blocks = []
-    print(node.block, start, end, node.point)
     if nd.is_start == 1 or node.current_structure_height == 0:
         return True
     while nd.is_start != 1:
@@ -621,7 +632,7 @@ def find_point(position, node, current_structure_height):
             nd = nd.parent
             continue
         if nd.position < position and nd.position+blocks[nd.block][0] > position:
-            return nd.point+blocks[nd.block][1]
+            return round(nd.point+blocks[nd.block][1],2)
         nd = nd.parent
     return 0
 
@@ -674,13 +685,13 @@ def generate_child(parent_node, step):
         if step % 2 == 1:
             if val[0] > val[1]:
                 continue
-            elif parent_node.is_head == 0 and val[1] != parent_node.max_height:
+            if parent_node.is_head == 0 and parent_node.max_height!=0 and round(val[1],2) != round(parent_node.max_height,2):
                 continue
         # step is even number, horizontal alignment
         else:
             if val[0] < val[1]:
                 continue
-            elif parent_node.is_head == 0 and val[1] != parent_node.max_height:
+            if parent_node.is_head == 0 and parent_node.max_height!=0 and round(val[1],2) != round(parent_node.max_height,2):
                 continue
         # print(val)
         child = Node()
@@ -696,6 +707,81 @@ def generate_child(parent_node, step):
         childlist.append(child)
     return childlist
 
+def find_pig_position(complete_locations):
+    # identify all possible pig positions on top of blocks (maximum 2 pigs per
+    # block, checks center before sides)
+    possible_pig_positions = []
+    for block in complete_locations:
+        block_width = round(blocks[str(block[0])][0], 10)
+        block_height = round(blocks[str(block[0])][1], 10)
+        pig_width = pig_size[0]
+        pig_height = pig_size[1]
+
+        # dont place block on edge if block too thin
+        if blocks[str(block[0])][0] < pig_width:
+            test_positions = [[round(block[1], 10), round(
+                block[2] + (pig_height/2) + (block_height/2), 10)]]
+        else:
+            test_positions = [[round(block[1], 10), round(block[2] + (pig_height/2) + (block_height/2), 10)],
+                              [round(block[1] + (block_width/3), 10),
+                               round(block[2] + (pig_height/2) + (block_height/2), 10)],
+                              [round(block[1] - (block_width/3), 10), round(block[2] + (pig_height/2) + (block_height/2), 10)]]  # check above centre of block
+        for test_position in test_positions:
+            valid_pig = True
+            for i in complete_locations:
+                if (round((test_position[0] - pig_width/2), 10) < round((i[1] + (blocks[str(i[0])][0])/2), 10) and
+                        round((test_position[0] + pig_width/2), 10) > round((i[1] - (blocks[str(i[0])][0])/2), 10) and
+                        round((test_position[1] + pig_height/2), 10) > round((i[2] - (blocks[str(i[0])][1])/2), 10) and
+                        round((test_position[1] - pig_height/2), 10) < round((i[2] + (blocks[str(i[0])][1])/2), 10)):
+                    valid_pig = False
+            if valid_pig == True:
+                possible_pig_positions.append(test_position)
+
+    # identify all possible pig positions on ground within structure
+    print('\ncomplete_locations\n',complete_locations)
+    left_bottom = [complete_locations[0][0],complete_locations[0][1]] #total_tree[-1][0]
+    print('right_bottom',list(filter(lambda x: x==complete_locations[0][2], complete_locations)))
+    right_bottom_block=sorted(list(filter(lambda x: x==complete_locations[0][2], complete_locations)), key=lambda y: y[1])[-1]
+    right_bottom = total_tree[-1][-1]
+    test_positions = []
+    x_pos = left_bottom[1]
+
+    while x_pos < right_bottom[1]:
+        test_positions.append([round(x_pos, 10), round(
+            absolute_ground + (pig_height/2), 10)])
+        x_pos = x_pos + pig_precision
+
+    for test_position in test_positions:
+        valid_pig = True
+        for i in complete_locations:
+            if (round((test_position[0] - pig_width/2), 10) < round((i[1] + (blocks[str(i[0])][0])/2), 10) and
+                    round((test_position[0] + pig_width/2), 10) > round((i[1] - (blocks[str(i[0])][0])/2), 10) and
+                    round((test_position[1] + pig_height/2), 10) > round((i[2] - (blocks[str(i[0])][1])/2), 10) and
+                    round((test_position[1] - pig_height/2), 10) < round((i[2] + (blocks[str(i[0])][1])/2), 10)):
+                valid_pig = False
+        if valid_pig == True:
+            possible_pig_positions.append(test_position)
+
+    # randomly choose a pig position and remove those that overlap it, repeat
+    # until no more valid positions
+    final_pig_positions = []
+    while len(possible_pig_positions) > 0:
+        pig_choice = possible_pig_positions.pop(
+            randint(1, len(possible_pig_positions))-1)
+        final_pig_positions.append(pig_choice)
+        new_pig_positions = []
+        for i in possible_pig_positions:
+            if (round((pig_choice[0] - pig_width/2), 10) >= round((i[0] + pig_width/2), 10) or
+                    round((pig_choice[0] + pig_width/2), 10) <= round((i[0] - pig_width/2), 10) or
+                    round((pig_choice[1] + pig_height/2), 10) <= round((i[1] - pig_height/2), 10) or
+                    round((pig_choice[1] - pig_height/2), 10) >= round((i[1] + pig_height/2), 10)):
+                new_pig_positions.append(i)
+        possible_pig_positions = new_pig_positions
+
+    # number of pigs present in the structure
+    print("Pig number:", len(final_pig_positions))
+    print("")
+    return complete_locations, final_pig_positions
 
 # creates the peaks (first row) of the structure
 
@@ -1498,13 +1584,15 @@ print(py)
 
 
 def limit_boundary(structure_height):
+    startpoint=round(float(px.subs(y, structure_height)),2)
     current_max_width = (
-        middle-px.subs(y, structure_height))*2
+        middle- startpoint )*2
+    print(structure_height,current_max_width)
     # print(current_max_width,m_height)
-    return px.subs(y, structure_height), px.subs(y, structure_height)+current_max_width
+    return startpoint, round(startpoint+float(current_max_width),2)
 
 
-def height_limit(position, point):
+def height_limit(position, point): #limit problems 
     position = middle-Abs(middle-position)
     y_limit = py.subs(x, position)
     # print("y_limit", y_limit)
@@ -1584,7 +1672,7 @@ def write_level_xml(complete_locations, selected_other, final_pig_positions, fin
 # a = [list(map(lambda x: round(x, 2), i)) for i in a]
 # print(a)
 # rebuild_node(a)
-
+data_logger=logging.getLogger('baseline')
 print(time.ctime())
 generate(m_height)
 # backup_probability_table_blocks = copy.deepcopy(probability_table_blocks)
