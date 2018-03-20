@@ -609,6 +609,11 @@ def check_stability(node, parent):
             continue
         elif nd.block != str(0) and ((nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end) or (nd.position <= start and nd.position+blocks[nd.block][0] >= end)):
             shadow_blocks.append(nd)
+            # print((nd.position+blocks[nd.block][0] >
+            #        start and nd.position+blocks[nd.block][0] < end))
+            # print((nd.position > start and nd.position < end))
+            # print((nd.position <= start and nd.position +
+            #        blocks[nd.block][0] >= end))
             print("shadow_blocks", nd.block, nd.position, nd.point)
             if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end and nd.position <= start) or nd.position <= start and nd.position+blocks[nd.block][0] >= end:
                 break
@@ -628,9 +633,9 @@ def check_stability(node, parent):
     contiguous_blocks = shadow_blocks
     # print("contiguous_blocks", len(contiguous_blocks))
     if len(contiguous_blocks) == 1:
-        if blocks[contiguous_blocks[0].block][0] >= blocks[node.block][0]:
-            return True
-        elif round(node.position+(blocks[node.block][0])/2.0, 2) == round(contiguous_blocks[0].position+(blocks[contiguous_blocks[0].block][0])/2.0, 2):
+        # if blocks[contiguous_blocks[0].block][0] >= blocks[node.block][0]:
+        #     return True
+        if round(node.position+(blocks[node.block][0])/2.0, 2) == round(contiguous_blocks[0].position+(blocks[contiguous_blocks[0].block][0])/2.0, 2):
             print(1)
             return True
         else:
