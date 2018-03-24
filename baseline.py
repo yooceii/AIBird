@@ -2,6 +2,7 @@ from random import randint
 from random import uniform
 from math import sqrt, ceil
 from pathlib import Path
+from shutil import copyfile
 import pickle
 import matlab.engine
 import copy
@@ -98,9 +99,12 @@ ground_structure_height_limit = (
 max_attempts = 100
 
 # step
-gap = 0.15
+gap = 0.45
 
 number_pigs = 4
+
+x = symbols("x")
+y = symbols("y")
 
 
 class Node(object):
@@ -283,20 +287,12 @@ def generate(structure_height):
     start.h = 0
     start.is_start = 1
     start.is_head = 1
-    # openlist = []
-    # closelist = [start]
-    # complete_locations = []
     leaf_node = []
     temp_leaf = []
     temp_leaf.append(start)
     leaf_node.append(start)
     step = 1
     height = 0
-    # relate to previous child
-    # x1, x2 = limit_boundary(height)
-
-    # maybe using linspace
-    # sections = np.arange(x1, x2, gap)
     signal = True
     while signal:
 
@@ -368,25 +364,13 @@ def generate(structure_height):
                         if child.point != parent_node.current_structure_height:
                             continue
                         if check_stability(child, parent_node) and (position+blocks[child.block][0]) <= x2 and (blocks[child.block][1] <= height_limit(position, child.point)-child.point) and (position == x1 or check_overlap(child, parent_node)):
-                            # if position+blocks[child.block][0]+0.22 > x2:
-                            #     if blocks[child.block][1] == child.max_height:
-                            #         child.parent = parent_node
-                            #         if position > x2-0.22:
-                            #             temp_leaf.append(child)
-                            #             # child.print()
-                            # else:
-                            # print("block", blocks[child.block][
-                             #     0], blocks[child.block][1])
                             child.parent = parent_node
                             if position+blocks[child.block][0] > x2-0.30:
                                 child.is_head = 1
                                 temp_leaf.append(child)
-
-                                # child.print()
                             temp_parents.append(child)
                             empty = False
                             child.print()
-                        # child.print()
                     # if no child is suitable
                     if empty:
                         child = Node(parent_node)
@@ -490,12 +474,12 @@ def prune(leaves, step):
         start, end = limit_boundary(
             x[0].current_structure_height)
         vectorization(x, round(start, 2), round(end, 2))
+    if step == 1:
+        copyfile('export.csv', 'export_step_1.csv')
     eng = matlab.engine.start_matlab()
-    if step <= 3:
-        k = 50
-    else:
-        k = 15
-    closestIdx = eng.Structure_prune(k)
+    eng.calculate_k(nargout=0)
+    K = int(eng.workspace['I'])
+    closestIdx, Idx, centroid = eng.Structure_prune(K, nargout=3)
     # parent_nodes=rebuild_node([list(map(lambda x: round(x, 2), i)) for i in prune_result])
     parent_nodes = []
     for i in closestIdx[0]:
@@ -518,10 +502,6 @@ def cosine_simility(columns):
 
 
 def vectorization(column, start, end):
-    # filehandler = open('column', 'w')
-    # pickle.dump(column, filehandler)
-    # with open('column', 'ab') as filehandler:
-    #     pickle.dump(column, filehandler)
     column_vector = np.zeros((len(np.arange(start, end, gap)), 2))
     # print(start, end, np.shape(column_vector),
     #       column_vector, np.arange(start, end, 0.22))
@@ -536,10 +516,10 @@ def vectorization(column, start, end):
             # print(column_vector)
             for x in np.arange(0, width, gap):
                 if x+gap <= width:
-                    column_vector[int(position+x/gap)][0] = gap
+                    column_vector[int(position+x/gap)][0] = round(gap, 2)
                 elif x+gap > width:
-                    column_vector[int(position+x/gap)][0] = width-x
-                column_vector[int(position+x/gap)][1] = height
+                    column_vector[int(position+x/gap)][0] = round(width-x, 2)
+                column_vector[int(position+x/gap)][1] = round(height, 2)
     column_vector_flatten = column_vector.flatten()
     df = pd.DataFrame([column_vector_flatten])
     # print("vectorization")
@@ -597,7 +577,6 @@ def check_stability(node, parent):
     if nd.is_start == 1 or node.current_structure_height == 0:
         return True
 
-    # check this part!!!
     signal = 0
     while nd.is_start != 1:
         if nd.is_head == 1:
@@ -816,433 +795,8 @@ def find_pig_position(complete_locations):
     print("")
     return complete_locations, final_pig_positions
 
-# creates the peaks (first row) of the structure
-
-
-def make_peaks(center_point):
-
-    current_tree_bottom = []        # bottom blocks of structure
-    # this is the number of peaks the structure will have
-    number_peaks = randint(1, max_peaks)
-    # this is the item at top of structure
-    top_item = choose_item(probability_table_blocks)
-
-    if number_peaks == 1:
-        current_tree_bottom.append([top_item, center_point])
-
-    if number_peaks == 2:
-        distance_apart_extra = round(
-            randint(min_peak_split, max_peak_split)/100.0, 10)
-        current_tree_bottom.append([top_item, round(
-            center_point - (blocks[str(top_item)][0]*0.5) - distance_apart_extra, 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point + (blocks[str(top_item)][0]*0.5) + distance_apart_extra, 10)])
-
-    if number_peaks == 3:
-        distance_apart_extra = round(
-            randint(min_peak_split, max_peak_split)/100.0, 10)
-        current_tree_bottom.append([top_item, round(
-            center_point - (blocks[str(top_item)][0]) - distance_apart_extra, 10)])
-        current_tree_bottom.append([top_item, round(center_point, 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point + (blocks[str(top_item)][0]) + distance_apart_extra, 10)])
-
-    if number_peaks == 4:
-        distance_apart_extra = round(
-            randint(min_peak_split, max_peak_split)/100.0, 10)
-        current_tree_bottom.append([top_item, round(
-            center_point - (blocks[str(top_item)][0]*1.5) - (distance_apart_extra*2), 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point - (blocks[str(top_item)][0]*0.5) - distance_apart_extra, 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point + (blocks[str(top_item)][0]*0.5) + distance_apart_extra, 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point + (blocks[str(top_item)][0]*1.5) + (distance_apart_extra*2), 10)])
-
-    if number_peaks == 5:
-        distance_apart_extra = round(
-            randint(min_peak_split, max_peak_split)/100.0, 10)
-        current_tree_bottom.append([top_item, round(
-            center_point - (blocks[str(top_item)][0]*2.0) - (distance_apart_extra*2), 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point - (blocks[str(top_item)][0]) - distance_apart_extra, 10)])
-        current_tree_bottom.append([top_item, round(center_point, 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point + (blocks[str(top_item)][0]) + distance_apart_extra, 10)])
-        current_tree_bottom.append([top_item, round(
-            center_point + (blocks[str(top_item)][0]*2.0) + (distance_apart_extra*2), 10)])
-    return current_tree_bottom
-
-
-# recursively adds rows to base of strucutre until max_width or max_height is passed
-# once this happens the last row added is removed and the structure is returned
-
-def make_structure(absolute_ground, center_point, max_width, max_height):
-
-    total_tree = []                 # all blocks of structure (so far)
-    # creates the first row (peaks) for the structure, ensuring that max_width
-    # restriction is satisfied
-    current_tree_bottom = make_peaks(center_point)
-
-    max_width, max_height = limit_boundary(
-        max_width, max_height, (blocks[str(current_tree_bottom[0][0])][1])/2)
-    if max_width > 0.0:
-        while find_structure_width(current_tree_bottom) > max_width:
-            current_tree_bottom = make_peaks(center_point)
-            max_width, max_height = limit_boundary(
-                max_width, max_height, (blocks[str(current_tree_bottom[0][0])][1])/2)
-
-    total_tree.append(current_tree_bottom)
-
-    # recursively add more rows of blocks to the level structure
-    structure_width = find_structure_width(current_tree_bottom)
-    structure_height = (blocks[str(current_tree_bottom[0][0])][1]/2)
-    print('w', structure_width, 'h', structure_height,
-          'w', max_width, 'h', max_height)
-    # print(current_width(structure_height),1,limit_boundary(max_width,max_height,current_tree_bottom))
-    if max_height > 0.0 or max_width > 0.0:
-        pre_total_tree = [current_tree_bottom]
-        while structure_height < max_height and structure_width < max_width:
-            total_tree, current_tree_bottom = add_new_row(
-                current_tree_bottom, total_tree)
-            complete_locations = []
-            ground = absolute_ground
-            for row in reversed(total_tree):
-                for item in row:
-                    complete_locations.append([item[0], item[1], round(
-                        (((blocks[str(item[0])][1])/2)+ground), 10)])
-                ground = ground + (blocks[str(item[0])][1])
-            structure_height = find_structure_height(complete_locations)
-            structure_width = find_structure_width(complete_locations)
-            # print(structure_width,find_structure_width(current_tree_bottom))
-            max_width, max_height = limit_boundary(
-                max_width, max_height, structure_height)
-            print('w:', structure_width, 'h:', structure_height,
-                  'w', max_width, 'h', max_height)
-
-            if structure_height > max_height:
-                total_tree = deepcopy(pre_total_tree)
-            elif structure_width > max_width:
-                total_tree = deepcopy(pre_total_tree)
-                complete_locations = []
-                ground = absolute_ground
-                for row in reversed(total_tree):
-                    for item in row:
-                        complete_locations.append([item[0], item[1], round(
-                            (((blocks[str(item[0])][1])/2)+ground), 10)])
-                    ground = ground + (blocks[str(item[0])][1])
-                structure_height = find_structure_height(complete_locations)
-                structure_width = find_structure_width(complete_locations)
-                current_tree_bottom = total_tree[len(total_tree)-1]
-                max_width, max_height = limit_boundary(
-                    max_width, max_height, structure_height)
-            else:
-                pre_total_tree = deepcopy(total_tree)
-            print('w:', structure_width, 'h:', structure_height,
-                  'w', max_width, 'h', max_height)
-            print('\n')
-
-    # make structure vertically correct (add y position to blocks)
-    complete_locations = []
-    ground = absolute_ground
-    for row in reversed(total_tree):
-        for item in row:
-            complete_locations.append([item[0], item[1], round(
-                (((blocks[str(item[0])][1])/2)+ground), 10)])
-        ground = ground + (blocks[str(item[0])][1])
-
-    print(total_tree)
-    print("Width:", find_structure_width(complete_locations))
-    print("Height:", find_structure_height(complete_locations))
-    # number blocks present in the structure
-    print("Block number:", len(complete_locations))
-
-    # identify all possible pig positions on top of blocks (maximum 2 pigs per
-    # block, checks center before sides)
-    possible_pig_positions = []
-    for block in complete_locations:
-        block_width = round(blocks[str(block[0])][0], 10)
-        block_height = round(blocks[str(block[0])][1], 10)
-        pig_width = pig_size[0]
-        pig_height = pig_size[1]
-
-        # dont place block on edge if block too thin
-        if blocks[str(block[0])][0] < pig_width:
-            test_positions = [[round(block[1], 10), round(
-                block[2] + (pig_height/2) + (block_height/2), 10)]]
-        else:
-            test_positions = [[round(block[1], 10), round(block[2] + (pig_height/2) + (block_height/2), 10)],
-                              [round(block[1] + (block_width/3), 10),
-                               round(block[2] + (pig_height/2) + (block_height/2), 10)],
-                              [round(block[1] - (block_width/3), 10), round(block[2] + (pig_height/2) + (block_height/2), 10)]]  # check above centre of block
-        for test_position in test_positions:
-            valid_pig = True
-            for i in complete_locations:
-                if (round((test_position[0] - pig_width/2), 10) < round((i[1] + (blocks[str(i[0])][0])/2), 10) and
-                        round((test_position[0] + pig_width/2), 10) > round((i[1] - (blocks[str(i[0])][0])/2), 10) and
-                        round((test_position[1] + pig_height/2), 10) > round((i[2] - (blocks[str(i[0])][1])/2), 10) and
-                        round((test_position[1] - pig_height/2), 10) < round((i[2] + (blocks[str(i[0])][1])/2), 10)):
-                    valid_pig = False
-            if valid_pig == True:
-                possible_pig_positions.append(test_position)
-
-    # identify all possible pig positions on ground within structure
-    left_bottom = total_tree[-1][0]
-    right_bottom = total_tree[-1][-1]
-    test_positions = []
-    x_pos = left_bottom[1]
-
-    while x_pos < right_bottom[1]:
-        test_positions.append([round(x_pos, 10), round(
-            absolute_ground + (pig_height/2), 10)])
-        x_pos = x_pos + pig_precision
-
-    for test_position in test_positions:
-        valid_pig = True
-        for i in complete_locations:
-            if (round((test_position[0] - pig_width/2), 10) < round((i[1] + (blocks[str(i[0])][0])/2), 10) and
-                    round((test_position[0] + pig_width/2), 10) > round((i[1] - (blocks[str(i[0])][0])/2), 10) and
-                    round((test_position[1] + pig_height/2), 10) > round((i[2] - (blocks[str(i[0])][1])/2), 10) and
-                    round((test_position[1] - pig_height/2), 10) < round((i[2] + (blocks[str(i[0])][1])/2), 10)):
-                valid_pig = False
-        if valid_pig == True:
-            possible_pig_positions.append(test_position)
-
-    # randomly choose a pig position and remove those that overlap it, repeat
-    # until no more valid positions
-    final_pig_positions = []
-    while len(possible_pig_positions) > 0:
-        pig_choice = possible_pig_positions.pop(
-            randint(1, len(possible_pig_positions))-1)
-        final_pig_positions.append(pig_choice)
-        new_pig_positions = []
-        for i in possible_pig_positions:
-            if (round((pig_choice[0] - pig_width/2), 10) >= round((i[0] + pig_width/2), 10) or
-                    round((pig_choice[0] + pig_width/2), 10) <= round((i[0] - pig_width/2), 10) or
-                    round((pig_choice[1] + pig_height/2), 10) <= round((i[1] - pig_height/2), 10) or
-                    round((pig_choice[1] - pig_height/2), 10) >= round((i[1] + pig_height/2), 10)):
-                new_pig_positions.append(i)
-        possible_pig_positions = new_pig_positions
-
-    # number of pigs present in the structure
-    print("Pig number:", len(final_pig_positions))
-    print("")
-
-    return complete_locations, final_pig_positions
-
-
-# divide the available ground space between the chosen number of ground
-# structures
-
-def create_ground_structures():
-    valid = False
-    while valid == False:
-        ground_divides = []
-        if number_ground_structures > 0:
-            ground_divides = [level_width_min, level_width_max]
-        for i in range(number_ground_structures-1):
-            ground_divides.insert(
-                i+1, uniform(level_width_min, level_width_max))
-        valid = True
-        print(range(len(ground_divides)-1))
-        for j in range(len(ground_divides)-1):
-            if (ground_divides[j+1] - ground_divides[j]) < min_ground_width:
-                valid = False
-
-    # determine the area available to each ground structure
-    ground_positions = []
-    ground_widths = []
-    for j in range(len(ground_divides)-1):
-        ground_positions.append(
-            ground_divides[j]+((ground_divides[j+1] - ground_divides[j])/2))
-        ground_widths.append(ground_divides[j+1] - ground_divides[j])
-
-    print("number ground structures:", len(ground_positions))
-    print("")
-
-    # creates a ground structure for each defined area
-    complete_locations = []
-    final_pig_positions = []
-    for i in range(len(ground_positions)):
-        max_width = ground_widths[i]
-        max_height = ground_structure_height_limit
-        print("max_width", max_width, "max_height", max_height)
-        center_point = ground_positions[i]
-        complete_locations2, final_pig_positions2 = make_structure(
-            absolute_ground, center_point, max_width, max_height)
-        complete_locations = complete_locations + complete_locations2
-        final_pig_positions = final_pig_positions + final_pig_positions2
-
-    return len(ground_positions), complete_locations, final_pig_positions
-
-
-# creates a set number of platforms within the level
-# automatically reduced if space not found after set number of attempts
-
-def create_platforms(number_platforms, complete_locations, final_pig_positions):
-
-    platform_centers = []
-    attempts = 0            # number of attempts so far to find space for platform
-    final_platforms = []
-    while len(final_platforms) < number_platforms:
-        platform_width = randint(4, 7)
-        platform_position = [uniform(level_width_min+((platform_width*platform_size[0])/2.0), level_width_max-((platform_width*platform_size[0])/2.0)),
-                             uniform(level_height_min, (level_height_max - minimum_height_gap))]
-        temp_platform = []
-
-        if platform_width == 1:
-            temp_platform.append(platform_position)
-
-        if platform_width == 2:
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*0.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*0.5), platform_position[1]])
-
-        if platform_width == 3:
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]), platform_position[1]])
-            temp_platform.append(platform_position)
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]), platform_position[1]])
-
-        if platform_width == 4:
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*1.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*0.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*0.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*1.5), platform_position[1]])
-
-        if platform_width == 5:
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*2.0), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]), platform_position[1]])
-            temp_platform.append(platform_position)
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*2.0), platform_position[1]])
-
-        if platform_width == 6:
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*2.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*1.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*0.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*0.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*1.5), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*2.5), platform_position[1]])
-
-        if platform_width == 7:
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*3.0), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]*2.0), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] - (platform_size[0]), platform_position[1]])
-            temp_platform.append(platform_position)
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*2.0), platform_position[1]])
-            temp_platform.append(
-                [platform_position[0] + (platform_size[0]*3.0), platform_position[1]])
-
-        overlap = False
-        for platform in temp_platform:
-
-            if (((platform[0]-(platform_size[0]/2)) < level_width_min) or ((platform[0]+(platform_size[0])/2) > level_width_max)):
-                overlap = True
-
-            for block in complete_locations:
-                if (round((platform[0] - platform_distance_buffer - platform_size[0]/2), 10) <= round((block[1] + blocks[str(block[0])][0]/2), 10) and
-                        round((platform[0] + platform_distance_buffer + platform_size[0]/2), 10) >= round((block[1] - blocks[str(block[0])][0]/2), 10) and
-                        round((platform[1] + platform_distance_buffer + platform_size[1]/2), 10) >= round((block[2] - blocks[str(block[0])][1]/2), 10) and
-                        round((platform[1] - platform_distance_buffer - platform_size[1]/2), 10) <= round((block[2] + blocks[str(block[0])][1]/2), 10)):
-                    overlap = True
-
-            for pig in final_pig_positions:
-                if (round((platform[0] - platform_distance_buffer - platform_size[0]/2), 10) <= round((pig[0] + pig_size[0]/2), 10) and
-                        round((platform[0] + platform_distance_buffer + platform_size[0]/2), 10) >= round((pig[0] - pig_size[0]/2), 10) and
-                        round((platform[1] + platform_distance_buffer + platform_size[1]/2), 10) >= round((pig[1] - pig_size[1]/2), 10) and
-                        round((platform[1] - platform_distance_buffer - platform_size[1]/2), 10) <= round((pig[1] + pig_size[1]/2), 10)):
-                    overlap = True
-
-            for platform_set in final_platforms:
-                for platform2 in platform_set:
-                    if (round((platform[0] - platform_distance_buffer - platform_size[0]/2), 10) <= round((platform2[0] + platform_size[0]/2), 10) and
-                            round((platform[0] + platform_distance_buffer + platform_size[0]/2), 10) >= round((platform2[0] - platform_size[0]/2), 10) and
-                            round((platform[1] + platform_distance_buffer + platform_size[1]/2), 10) >= round((platform2[1] - platform_size[1]/2), 10) and
-                            round((platform[1] - platform_distance_buffer - platform_size[1]/2), 10) <= round((platform2[1] + platform_size[1]/2), 10)):
-                        overlap = True
-
-            for platform_set2 in final_platforms:
-                for i in platform_set2:
-                    if i[0]+platform_size[0] > platform[0] and i[0]-platform_size[0] < platform[0]:
-                        if i[1]+minimum_height_gap > platform[1] and i[1]-minimum_height_gap < platform[1]:
-                            overlap = True
-
-        if overlap == False:
-            final_platforms.append(temp_platform)
-            platform_centers.append(platform_position)
-
-        attempts = attempts + 1
-        if attempts > max_attempts:
-            attempts = 0
-            number_platforms = number_platforms - 1
-
-    print("number platforms:", number_platforms)
-    print("")
-
-    return number_platforms, final_platforms, platform_centers
-
-
-# create sutiable structures for each platform
-
-def create_platform_structures(final_platforms, platform_centers, complete_locations, final_pig_positions):
-    current_platform = 0
-    for platform_set in final_platforms:
-        platform_set_width = len(platform_set)*platform_size[0]
-
-        above_blocks = []
-        for platform_set2 in final_platforms:
-            if platform_set2 != platform_set:
-                for i in platform_set2:
-                    if i[0]+platform_size[0] > platform_set[0][0] and i[0]-platform_size[0] < platform_set[-1][0] and i[1] > platform_set[0][1]:
-                        above_blocks.append(i)
-
-        min_above = level_height_max
-        for j in above_blocks:
-            if j[1] < min_above:
-                min_above = j[1]
-
-        center_point = platform_centers[current_platform][0]
-        absolute_ground = platform_centers[
-            current_platform][1] + (platform_size[1]/2)
-
-        max_width = platform_set_width
-        max_height = (min_above - absolute_ground) - \
-            pig_size[1] - platform_size[1]
-
-        complete_locations2, final_pig_positions2 = make_structure(
-            absolute_ground, center_point, max_width, max_height)
-        complete_locations = complete_locations + complete_locations2
-        final_pig_positions = final_pig_positions + final_pig_positions2
-
-        current_platform = current_platform + 1
-
-    return complete_locations, final_pig_positions
-
-
 # remove random pigs until number equals the desired amount
+
 
 def remove_unnecessary_pigs(number_pigs, final_pig_positions):
     removed_pigs = []
@@ -1580,31 +1134,32 @@ def add_TNT(potential_positions):
 
 
 def read_limit(filename):
-    file = open(filename, "r")
-    l = file.readline().strip('\n').split(',')
-    function_x = []
-    function_y = []
-    lx = []
-    ly = []
-    while (l != ['']):
-        print(l)
-        function_x.append(l[0])
-        lx.append(l[1])
+    with open(filename, "r") as file:
         l = file.readline().strip('\n').split(',')
+        function_x = []
+        function_y = []
+        lx = []
+        ly = []
+        while (l != ['']):
+            print(l)
+            function_x.append(l[0])
+            lx.append(l[1])
+            l = file.readline().strip('\n').split(',')
 
-    l = file.readline().strip('\n').split(',')
-    while (l != ['']):
-        print(l)
-        function_y.append(l[0])
-        ly.append(l[1])
-        l = file.readline().strip().strip('\n').split(',')
+        l = file.readline().strip('\n').split(',')
+        while (l != ['']):
+            print(l)
+            function_y.append(l[0])
+            ly.append(l[1])
+            l = file.readline().strip().strip('\n').split(',')
 
-    middle = float(file.readline().strip('\n'))
-    return Piecewise(*[(sympify(f), y <= float(lx))
-                       for f, lx
-                       in zip(function_x, lx)]), Piecewise(*[(sympify(f), x <= float(ly))
-                                                             for f, ly
-                                                             in zip(function_y, ly)]), float(lx[len(lx)-1]), middle
+        middle = float(file.readline().strip('\n'))
+        return Piecewise(*[(sympify(f), y < float(lx)) if i != len(function_x)-1 else (sympify(f), y <= float(lx))
+                           for i, (f, lx)
+                           in enumerate(zip(function_x, lx))]), Piecewise(*[(sympify(f), x <= float(ly))
+                                                                            for f, ly
+                                                                            in zip(function_y, ly)]), float(lx[len(lx)-1]), middle
+    return False
 
 
 def limit_boundary(structure_height):
@@ -1689,9 +1244,7 @@ def write_level_xml(complete_locations, selected_other, final_pig_positions, fin
 
 
 if __name__ == '__main__':
-    x = symbols("x")
-    y = symbols("y")
-    px, py, m_height, middle = read_limit("limit_parameter2.txt")
+    px, py, m_height, middle = read_limit("limit_parameter.txt")
     print(px)
     print(py)
     print(time.ctime())
