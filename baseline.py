@@ -12,6 +12,8 @@ import pandas as pd
 import os.path
 import time
 import logging
+import sys
+import os
 
 # blocks number and size
 blocks = {'1': [0.85, 0.85], '2': [0.85, 0.43], '3': [0.43, 0.85], '4': [0.43, 0.43],
@@ -415,11 +417,12 @@ def generate(structure_height):
     return structures
 
 
-def construct(nodes):
+def construct(nodes, folder):
+    os.makedirs(folder, exist_ok=True)
     structures = []
     i = 4
     for node in nodes:
-        with open('node'+str(i), 'wb') as filehandler:
+        with open(folder+'/node'+str(i), 'wb') as filehandler:
             pickle.dump(node, filehandler)
         complete_locations = []
         while node.is_start != 1:
@@ -433,7 +436,7 @@ def construct(nodes):
         final_pig_positions, removed_pigs = remove_unnecessary_pigs(
             number_pigs, final_pig_positions)
         final_TNT_positions = add_TNT(removed_pigs)
-        write_level_xml(complete_locations,
+        write_level_xml(folder, complete_locations,
                         [], final_pig_positions, final_TNT_positions, [], 5, i, [])
         i = i+1
         structures.append(complete_locations.reverse())
@@ -570,8 +573,8 @@ def check_overlap(node, parent):
 
 def check_stability(node, parent):
     nd = copy.copy(parent)
-    start = node.position
-    end = node.position+blocks[node.block][0]
+    start = round(node.position, 2)
+    end = round(node.position+blocks[node.block][0], 2)
     shadow_blocks = []
     contiguous_blocks = []
     if nd.is_start == 1 or node.current_structure_height == 0:
@@ -586,7 +589,7 @@ def check_stability(node, parent):
         if nd.block == str(0):
             nd = nd.parent
             continue
-        elif nd.block != str(0) and ((nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end) or (nd.position > start and nd.position < end) or (nd.position <= start and nd.position+blocks[nd.block][0] >= end)):
+        elif nd.block != str(0) and ((round(nd.position+blocks[nd.block][0], 2) > start and round(nd.position+blocks[nd.block][0], 2) < end) or (round(nd.position, 2) > start and round(nd.position, 2) < end) or (round(nd.position, 2) <= start and round(nd.position+blocks[nd.block][0], 2) >= end)):
             shadow_blocks.append(nd)
             # print((nd.position+blocks[nd.block][0] >
             #        start and nd.position+blocks[nd.block][0] < end))
@@ -594,7 +597,7 @@ def check_stability(node, parent):
             # print((nd.position <= start and nd.position +
             #        blocks[nd.block][0] >= end))
             print("shadow_blocks", nd.block, nd.position, nd.point)
-            if (nd.position+blocks[nd.block][0] > start and nd.position+blocks[nd.block][0] < end and nd.position <= start) or nd.position <= start and nd.position+blocks[nd.block][0] >= end:
+            if (round(nd.position+blocks[nd.block][0], 2) > start and round(nd.position+blocks[nd.block][0], 2) < end and round(nd.position, 2) <= start) or (round(nd.position, 2) <= start and round(nd.position+blocks[nd.block][0], 2) >= end):
                 break
         nd = nd.parent
 
@@ -614,13 +617,18 @@ def check_stability(node, parent):
     if len(contiguous_blocks) == 1:
         # if blocks[contiguous_blocks[0].block][0] >= blocks[node.block][0]:
         #     return True
-        if round(node.position+(blocks[node.block][0])/2.0, 2) == round(contiguous_blocks[0].position+(blocks[contiguous_blocks[0].block][0])/2.0, 2):
+        contiguous_block_left_point = round(contiguous_blocks[0].position, 2)
+        contiguous_block_right_point = round(
+            contiguous_block_left_point+blocks[contiguous_blocks[0].block][0], 2)
+        node_left_point = round(node.position, 2)
+        node_right_point = round(node_left_point+blocks[node.block][0], 2)
+        if (contiguous_block_left_point <= node_left_point and contiguous_block_right_point >= node_right_point) or round(node_left_point+(blocks[node.block][0])/2.0, 2) == round(contiguous_block_left_point+(blocks[contiguous_blocks[0].block][0])/2.0, 2):
             print(1)
             return True
         else:
             return False
     elif len(contiguous_blocks) >= 2:
-        if contiguous_blocks[0].position+blocks[contiguous_blocks[0].block][0] > start and contiguous_blocks[-1].position + blocks[contiguous_blocks[-1].block][0]/2.0 >= (3*end+start)/4:
+        if round(contiguous_blocks[0].position+blocks[contiguous_blocks[0].block][0], 2) > start and contiguous_blocks[-1].position + blocks[contiguous_blocks[-1].block][0]/2.0 >= (3*end+start)/4:
             return True
         else:
             return False
@@ -1183,9 +1191,8 @@ def height_limit(position, point):  # limit problems
 # write level out in desired xml format
 
 
-def write_level_xml(complete_locations, selected_other, final_pig_positions, final_TNT_positions, final_platforms, number_birds, current_level, restricted_combinations):
-
-    f = open("level-%02d.xml" % current_level, "w")
+def write_level_xml(folder, complete_locations, selected_other, final_pig_positions, final_TNT_positions, final_platforms, number_birds, current_level, restricted_combinations):
+    f = open(folder+"/level-%02d.xml" % current_level, "w")
 
     f.write('<?xml version="1.0" encoding="utf-16"?>\n')
     f.write('<Level width ="2">\n')
@@ -1244,9 +1251,9 @@ def write_level_xml(complete_locations, selected_other, final_pig_positions, fin
 
 
 if __name__ == '__main__':
-    px, py, m_height, middle = read_limit("limit_parameter.txt")
+    px, py, m_height, middle = read_limit("limit_parameter2.txt")
     print(px)
     print(py)
     print(time.ctime())
     structures = generate(m_height)
-    construct(structures)
+    construct(structures, sys.argv[1])
