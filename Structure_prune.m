@@ -1,4 +1,4 @@
-function y=Structure_prune(k)
+function [y, Idx, Ctrs]=Structure_prune(k)
 data=csvread('export.csv',1,1);
 [Idx,Ctrs] = kmeans(data,k);
 closestIdx=zeros(1,k,'uint16');
